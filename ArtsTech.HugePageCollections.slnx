@@ -1,1 +1,9 @@
-<Solution />
+<Solution>
+  <Folder Name="/sln/">
+    <File Path=".gitignore" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="ArtsTech.HugePageCollections.UnitTests\ArtsTech.HugePageCollections.UnitTests.csproj" Type="Classic C#" />
+    <Project Path="ArtsTech.HugePageCollections\ArtsTech.HugePageCollections.csproj" Type="Classic C#" />
+  </Folder>
+</Solution>
