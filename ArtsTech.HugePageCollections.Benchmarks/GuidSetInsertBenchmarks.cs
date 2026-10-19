@@ -39,12 +39,19 @@ public class GuidSetInsertBenchmarks
     
     [Params(true, false)]
     public bool AlreadyExist { get; set; }
+    
+    [Params(true, false)]
+    public bool Preallocated { get; set; }
 
     [GlobalSetup]
     public void Setup()
     {
-        _hugePagesSet = new HugePagesSet<Guid>(InitialCapacity, ClearMode.Never);
-        _hashSet = new HashSet<Guid>(InitialCapacity);
+        _hugePagesSet = Preallocated 
+            ? new HugePagesSet<Guid>(InitialCapacity, ClearMode.Never)
+            : new HugePagesSet<Guid>(ClearMode.Never);
+        _hashSet = Preallocated
+            ? new HashSet<Guid>(InitialCapacity)
+            : new HashSet<Guid>();
         
         _guids = new List<Guid>(InitialCapacity);
         for (var i = 0; i < InitialCapacity; i++)
@@ -60,6 +67,12 @@ public class GuidSetInsertBenchmarks
         {
             _hugePagesSet.Clear();
             _hashSet.Clear();
+        }
+
+        if (!Preallocated)
+        {
+            _hugePagesSet.TrimExcess();
+            _hashSet.TrimExcess();
         }
     }
 
