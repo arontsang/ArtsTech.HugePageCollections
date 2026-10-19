@@ -44,10 +44,27 @@ file class LinuxHugePageOwnedMemory<T>(int length) : IMemoryOwner<T>
 file static unsafe class LinuxHugePageMemoryInterop
 {
     [DllImport("libc", SetLastError = true)]
-    public static extern byte* mmap(void* addr, nuint length, int prot, int flags, int fd, nint offset);
+    public static extern byte* mmap(void* addr, nuint length, Prots prot, Flags flags, int fd, nint offset);
     [DllImport("libc", SetLastError = true)]
     public static extern int munmap(void* addr, nuint length);
 }
+
+[Flags]
+file enum Prots : uint
+{
+    READ = 0x01,
+    WRITE = 0x02,
+    
+}
+
+[Flags]
+file enum Flags : uint
+{
+    PRIVATE = 0x02,
+    ANONYMOUS = 0x20,
+    HUGE = 0x40000
+}
+
 [SupportedOSPlatform("linux")]
 file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unmanaged
 {
@@ -64,7 +81,7 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
         
         _length = Power2Size(length * sizeof(T));
         var size = (nuint) _length;
-        _pointer = LinuxHugePageMemoryInterop.mmap(null, size, 0x1 | 0x2, 0x02 | 0x20 | 0x40000, -1, 0);
+        _pointer = LinuxHugePageMemoryInterop.mmap(null, size, Prots.READ | Prots.WRITE, Flags.ANONYMOUS | Flags.HUGE | Flags.PRIVATE, -1, 0);
         if (_pointer == null) throw new OutOfMemoryException($"Linux HugePage allocation failed. Error: {Marshal.GetLastWin32Error()}");
     }
     
