@@ -21,6 +21,9 @@ public class GuidSetContainsBenchmarks
     private HashSet<Guid> _hashSet = null!;
     private Random _random = null!;
     private int _populationCount;
+    
+    
+    private const int OperationsPerInvoke = 8_000_000 / 4;
 
     [GlobalSetup]
     public void Setup()
@@ -44,22 +47,26 @@ public class GuidSetContainsBenchmarks
         }
     }
 
-    [IterationSetup]
-    public void SetupIteration()
-    {
-        _random = new Random(RandomSeed);
-    }
 
-    [Benchmark(Baseline = true)]
+
+    [Benchmark(Baseline = true, OperationsPerInvoke = OperationsPerInvoke)]
     public void HashSet_ContainsHits()
     {
-        _ =_hashSet.Contains(_random.NextGuid());
+        var random = new Random(RandomSeed);
+        for (var i = 0; i < OperationsPerInvoke; i++)
+        {
+            _ = _hashSet.Contains(random.NextGuid());
+        }
     }
 
-    [Benchmark]
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public void HugePagesSet_ContainsHits()
     {
-        _ = _hugePagesSet.Contains(_random.NextGuid());
+        var random = new Random(RandomSeed);
+        for (var i = 0; i < OperationsPerInvoke; i++)
+        {
+            _ = _hugePagesSet.Contains(random.NextGuid());
+        }
     }
 
     [GlobalCleanup]

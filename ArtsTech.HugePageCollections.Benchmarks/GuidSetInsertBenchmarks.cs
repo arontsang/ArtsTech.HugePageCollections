@@ -13,29 +13,47 @@ public class GuidSetInsertBenchmarks
 
     private HugePagesSet<Guid> _hugePagesSet = null!;
     private HashSet<Guid> _hashSet = null!;
-    private Random _random = null!;
+    private List<Guid> _guids = null!;
+
+    private const int OperationsPerInvoke = 8_000_000;
 
     [GlobalSetup]
     public void Setup()
     {
-        _random = new Random(RandomSeed);
         _hugePagesSet = new HugePagesSet<Guid>(InitialCapacity, ClearMode.Never);
         _hashSet = new HashSet<Guid>(InitialCapacity);
+        
+        _guids = new List<Guid>(OperationsPerInvoke);
+        for (var i = 0; i < OperationsPerInvoke; i++)
+        {
+            _hashSet.Add(Guid.NewGuid());
+        }
     }
 
     [IterationSetup]
     public void SetupIteration()
     {
-        _random = new Random(RandomSeed);
         _hugePagesSet.Clear();
         _hashSet.Clear();
     }
 
-    [Benchmark(Baseline = true)]
-    public bool HashSet_AddSingleGuid() => _hashSet.Add(_random.NextGuid());
+    [Benchmark(Baseline = true, OperationsPerInvoke = OperationsPerInvoke)]
+    public void HashSet_AddSingleGuid()
+    {
+        foreach (var item in _guids)
+        {
+            _hashSet.Add(item);
+        }
+    }
 
-    [Benchmark]
-    public bool HugePagesSet_AddSingleGuid() => _hugePagesSet.Add(_random.NextGuid());
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    public void HugePagesSet_AddSingleGuid()
+    {
+        foreach (var item in _guids)
+        {
+            _hashSet.Add(item);
+        }
+    }
 
     [GlobalCleanup]
     public void Cleanup()
