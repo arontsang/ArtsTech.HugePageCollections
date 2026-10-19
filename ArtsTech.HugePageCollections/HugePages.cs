@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -14,4 +15,5 @@ public static partial class HugePages
             return IsHugePageAllowLinux();
         return false;
     }
+    
 }
