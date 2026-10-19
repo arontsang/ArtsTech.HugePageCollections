@@ -2,12 +2,32 @@ using System;
 using System.Collections.Generic;
 using ArtsTech.HugePageCollections.Collections;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Columns;
+using BenchmarkDotNet.Configs;
 
 namespace ArtsTech.HugePageCollections.Benchmarks;
 
 [MemoryDiagnoser]
+[Config(typeof(Config))]
 public class GuidSetInsertBenchmarks
 {
+    private class Config : ManualConfig
+    {
+        public Config()
+        {
+            AddColumn(
+                StatisticColumn.P0,
+                StatisticColumn.P25,
+                StatisticColumn.P50,
+                StatisticColumn.P67,
+                StatisticColumn.P80,
+                StatisticColumn.P85,
+                StatisticColumn.P90,
+                StatisticColumn.P95,
+                StatisticColumn.P100);
+        }
+    }
+    
     private const int InitialCapacity = 16_000_000;
     private const int RandomSeed = 4; // Chosen by fair dice roll. Guaranteed to be random.
 
