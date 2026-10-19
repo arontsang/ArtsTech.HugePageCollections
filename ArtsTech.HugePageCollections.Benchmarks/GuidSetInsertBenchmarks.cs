@@ -16,6 +16,9 @@ public class GuidSetInsertBenchmarks
     private List<Guid> _guids = null!;
 
     private const int OperationsPerInvoke = 8_000_000;
+    
+    [Params(true, false)]
+    public bool AlreadyExist { get; set; }
 
     [GlobalSetup]
     public void Setup()
@@ -33,8 +36,11 @@ public class GuidSetInsertBenchmarks
     [IterationSetup]
     public void SetupIteration()
     {
-        _hugePagesSet.Clear();
-        _hashSet.Clear();
+        if (!AlreadyExist)
+        {
+            _hugePagesSet.Clear();
+            _hashSet.Clear();
+        }
     }
 
     [Benchmark(Baseline = true, OperationsPerInvoke = OperationsPerInvoke)]
