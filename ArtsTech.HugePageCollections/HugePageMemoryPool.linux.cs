@@ -31,13 +31,21 @@ file class LinuxHugePageOwnedMemory<T>(int length) : IMemoryOwner<T>
     where T : unmanaged
 {
     private readonly LinuxHugePageMemoryManager<T> _manager = new(length);
+    private bool _isDisposed;
 
     public void Dispose()
     {
-            
+        if (!_isDisposed)
+        {
+            IDisposable disposal = _manager;
+            disposal.Dispose();
+            _isDisposed = true;
+        }
     }
 
-    public Memory<T> Memory => _manager.Memory;
+    public Memory<T> Memory => _isDisposed
+        ? throw new ObjectDisposedException(nameof(LinuxHugePageOwnedMemory<T>))
+        : _manager.Memory;
 }
 
 [SupportedOSPlatform("linux")]
@@ -82,7 +90,10 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
         _length = Power2Size(length * sizeof(T));
         var size = (nuint) _length;
         _pointer = LinuxHugePageMemoryInterop.mmap(null, size, Prots.READ | Prots.WRITE, Flags.ANONYMOUS | Flags.HUGE | Flags.PRIVATE, -1, 0);
-        if (_pointer == null) throw new OutOfMemoryException($"Linux HugePage allocation failed. Error: {Marshal.GetLastWin32Error()}");
+        if (_pointer == (byte*)new IntPtr(-1))
+        {
+            throw new OutOfMemoryException($"Linux huge-page allocation failed. errno: {Marshal.GetLastPInvokeError()}");
+        }
     }
     
     
@@ -100,7 +111,7 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
             throw new ObjectDisposedException(nameof(LinuxHugePageMemoryManager<T>));
         if (elementIndex < 0 || elementIndex >= _requestedLength) 
             throw new ArgumentOutOfRangeException(nameof(elementIndex));
-        return new MemoryHandle(_pointer + elementIndex);
+        return new MemoryHandle(_pointer + elementIndex * sizeof(T), default, this);
     }
 
     public override void Unpin()
@@ -112,10 +123,7 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
     {
         if (!_isDisposed)
         {
-            if (_pointer != null)
-            {
-                LinuxHugePageMemoryInterop.munmap(_pointer, (nuint) _length);
-            }
+            LinuxHugePageMemoryInterop.munmap(_pointer, (nuint) _length);
             _isDisposed = true;
         }
     }
