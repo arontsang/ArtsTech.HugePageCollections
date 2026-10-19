@@ -9,7 +9,8 @@ public static partial class HugePageMemoryPool<T> where T : unmanaged
     {
         if (OperatingSystem.IsLinux())
             MemoryPool = new LinuxHugePageMemoryAllocator();
-        throw new NotImplementedException();
+        else
+            throw new NotImplementedException();
     }
     
     public static MemoryPool<T> MemoryPool { get; }

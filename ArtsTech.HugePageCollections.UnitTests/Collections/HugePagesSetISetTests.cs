@@ -111,21 +111,7 @@ public class HugePagesSetISetTests
         Assert.That(set, Is.Empty);
     }
 
-    [Test]
-    public void ComparerIsAppliedAcrossISetOperations()
-    {
-        using var hugePagesSet = new HugePagesSet<string>(StringComparer.OrdinalIgnoreCase);
-        ISet<string> set = hugePagesSet;
 
-        Assert.That(set.Add("alpha"), Is.True);
-        Assert.That(set.Add("ALPHA"), Is.False);
-        set.UnionWith(new[] { "Beta", "BETA" });
-
-        Assert.That(set.Contains("beta"), Is.True);
-        Assert.That(set.SetEquals(new[] { "ALPHA", "beta", "BETA" }), Is.True);
-        set.ExceptWith(new[] { "aLpHa" });
-        Assert.That(set, Is.EquivalentTo(new[] { "Beta" }));
-    }
 
     [Test]
     public void AddRemoveAndSetOperationsRemainCorrectAcrossGrowth()

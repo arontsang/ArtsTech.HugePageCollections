@@ -55,7 +55,14 @@ namespace ArtsTech.HugePageCollections.Collections
     [DebuggerDisplay("Count = {Count}")]
     [SuppressMessage("Microsoft.Naming", "CA1710:IdentifiersShouldHaveCorrectSuffix", Justification = "By design")]
     [Serializable]
-    public class HugePagesSet<T> : ICollection<T>, ISet<T>, IReadOnlyCollection<T>, ISerializable, IDeserializationCallback, IDisposable
+    public class HugePagesSet<T> 
+        : ICollection<T>
+            , ISet<T>
+            , IReadOnlyCollection<T>
+            , ISerializable
+            , IDeserializationCallback
+            , IDisposable
+        where T : unmanaged
     {
         // store lower 31 bits of hash code
         private const int Lower31BitMask = 0x7FFFFFFF;
@@ -74,8 +81,8 @@ namespace ArtsTech.HugePageCollections.Collections
         private const string ComparerName = "Comparer"; // Do not rename (binary serialization)
         private const string VersionName = "Version"; // Do not rename (binary serialization)
 
-        private static readonly MemoryPool<int> s_bucketPool = MemoryPool<int>.Shared;
-        private static readonly MemoryPool<Slot> s_slotPool = MemoryPool<Slot>.Shared;
+        private static readonly MemoryPool<int> s_bucketPool = HugePageMemoryPool<int>.MemoryPool;
+        private static readonly MemoryPool<Slot> s_slotPool = HugePageMemoryPool<Slot>.MemoryPool;
 
         private IMemoryOwner<int>? _bucketOwner;
         private IMemoryOwner<Slot>? _slotOwner;
@@ -2603,10 +2610,6 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns>hash code</returns>
         private int InternalGetHashCode(T item)
         {
-            if (item == null)
-            {
-                return 0;
-            }
             return _comparer.GetHashCode(item) & Lower31BitMask;
         }
 

@@ -10,7 +10,7 @@ namespace ArtsTech.HugePageCollections.Collections
     /// Equality comparer for hashsets of hashsets
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal sealed class HugePagesSetEqualityComparer<T> : IEqualityComparer<HugePagesSet<T>>
+    internal sealed class HugePagesSetEqualityComparer<T> : IEqualityComparer<HugePagesSet<T>> where T : unmanaged
     {
         private readonly IEqualityComparer<T> _comparer;
 
