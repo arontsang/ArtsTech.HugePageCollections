@@ -1,12 +1,13 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="ArtsTech.HugePageCollections.Benchmarks\ArtsTech.HugePageCollections.Benchmarks.csproj" Type="Classic C#" />
+  </Folder>
   <Folder Name="/sln/">
     <File Path=".gitignore" />
+    <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="ArtsTech.HugePageCollections.UnitTests\ArtsTech.HugePageCollections.UnitTests.csproj" Type="Classic C#" />
     <Project Path="ArtsTech.HugePageCollections\ArtsTech.HugePageCollections.csproj" Type="Classic C#" />
-  </Folder>
-  <Folder Name="/benchmarks/">
-    <Project Path="ArtsTech.HugePageCollections.Benchmarks\ArtsTech.HugePageCollections.Benchmarks.csproj" Type="Classic C#" />
   </Folder>
 </Solution>
