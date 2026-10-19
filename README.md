@@ -44,7 +44,7 @@ dotnet test ArtsTech.HugePageCollections.UnitTests/ArtsTech.HugePageCollections.
 
 ## Benchmarks
 
-The BenchmarkDotNet project compares single `Guid` insertions and full-set `Contains` hits for `HugePagesSet<Guid>` and `HashSet<Guid>`. Both sets are initialized with a capacity of 8 million. The benchmarks generate GUIDs from a seeded `Random` (seed `4`), so both implementations receive the same sequence. The `Contains` benchmark prepopulates both sets with 8 million GUIDs and scans the same sequence on each iteration.
+The BenchmarkDotNet project compares single `Guid` insertions and `Contains` hits for `HugePagesSet<Guid>` and `HashSet<Guid>`. Both sets are initialized with a capacity of 8 million. The benchmarks generate GUIDs from a seeded `Random` (seed `4`), so both implementations receive the same sequence. The `Contains` benchmark prepopulates both sets to the selected fill factor (25%, 50%, 75%, or 100%) and scans 100,000 matching GUIDs per iteration. It uses one warmup and three measurement iterations to keep run times shorter.
 
 Run the benchmarks in Release configuration:
 
@@ -58,5 +58,12 @@ Sample insertion results:
 |--------------------------- |---------:|---------:|---------:|---------:|------:|--------:|----------:|------------:|
 | HashSet_AddSingleGuid      | 43.05 us | 2.995 us | 8.300 us | 43.49 us |  1.13 |    1.05 |     448 B |        1.00 |
 | HugePagesSet_AddSingleGuid | 10.71 us | 0.868 us | 2.517 us | 11.70 us |  0.28 |    0.27 |     736 B |        1.64 |
+
+Sample contains results for a 100% fill factor:
+
+| Method                    | Mean     | Error   | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
+|-------------------------- |---------:|--------:|---------:|------:|--------:|----------:|------------:|
+| HashSet_ContainsHits      | 451.6 ns | 8.78 ns | 14.43 ns |  1.00 |    0.04 |         - |          NA |
+| HugePagesSet_ContainsHits | 384.2 ns | 7.47 ns |  8.60 ns |  0.85 |    0.03 |         - |          NA |
 
 Benchmark results vary with hardware, runtime, operating-system configuration, and load.
