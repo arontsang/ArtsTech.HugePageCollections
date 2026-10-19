@@ -20,4 +20,8 @@
         <Using Include="NUnit.Framework"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\ArtsTech.HugePageCollections\ArtsTech.HugePageCollections.csproj" />
+    </ItemGroup>
+
 </Project>

@@ -74,17 +74,14 @@ namespace ArtsTech.HugePageCollections.Collections
         private const string ComparerName = "Comparer"; // Do not rename (binary serialization)
         private const string VersionName = "Version"; // Do not rename (binary serialization)
 
-        private static readonly ArrayPool<int> s_bucketPool = ArrayPool<int>.Shared;
-        private static readonly ArrayPool<Slot> s_slotPool = ArrayPool<Slot>.Shared;
+        private static readonly MemoryPool<int> s_bucketPool = MemoryPool<int>.Shared;
+        private static readonly MemoryPool<Slot> s_slotPool = MemoryPool<Slot>.Shared;
 
-        // WARNING:
-        // It's important that the number of buckets be prime, and these arrays could exceed
-        // that size as they come from ArrayPool. Be careful not to index past _size or bad
-        // things will happen.
-        // Alternatively, use the private properties Buckets and Slots, which slice the
-        // arrays down to the correct length.
-        private int[] _buckets = null!;
-        private Slot[] _slots = null!;
+        private IMemoryOwner<int>? _bucketOwner;
+        private IMemoryOwner<Slot>? _slotOwner;
+
+        private Memory<int> _buckets;
+        private Memory<Slot> _slots;
         private int _size;
 
         private int _count;
@@ -300,11 +297,13 @@ namespace ArtsTech.HugePageCollections.Collections
 
             if (threshold >= capacity)
             {
-                _buckets = s_bucketPool.Rent(capacity);
-                Array.Clear(_buckets, 0, _buckets.Length);
-                Array.Copy(source._buckets, _buckets, capacity);
-                _slots = s_slotPool.Rent(capacity);
-                Array.Copy(source._slots, _slots, capacity);
+                _bucketOwner = s_bucketPool.Rent(capacity);
+                _buckets = _bucketOwner.Memory;
+                _buckets.Span.Clear();
+                source._buckets.Span[..capacity].CopyTo(_buckets.Span);
+                _slotOwner = s_slotPool.Rent(capacity);
+                _slots = _slotOwner.Memory;
+                source._slots.Span[..capacity].CopyTo(_slots.Span);
 
                 _lastIndex = source._lastIndex;
                 _freeList = source._freeList;
@@ -312,7 +311,7 @@ namespace ArtsTech.HugePageCollections.Collections
             else
             {
                 int lastIndex = source._lastIndex;
-                Slot[] slots = source._slots;
+                Span<Slot> slots = source._slots.Span;
                 Initialize(count);
                 int index = 0;
                 for (int i = 0; i < lastIndex; ++i)
@@ -350,12 +349,12 @@ namespace ArtsTech.HugePageCollections.Collections
         {
             if (_lastIndex > 0)
             {
-                Debug.Assert(_buckets != null, "_buckets was null but _lastIndex > 0");
+                Debug.Assert(_bucketOwner != null, "_buckets was null but _lastIndex > 0");
 
                 // clear the elements so that the gc can reclaim the references.
                 // clear only up to _lastIndex for _slots 
-                Array.Clear(_slots, 0, _lastIndex);
-                Array.Clear(_buckets, 0, _buckets.Length);
+                _slots.Span[.._lastIndex].Clear();
+                _buckets.Span.Clear();
                 _lastIndex = 0;
                 _count = 0;
                 _freeList = -1;
@@ -370,13 +369,13 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns>true if item contained; false if not</returns>
         public bool Contains(T item)
         {
-            if (_buckets != null)
+            if (_bucketOwner != null)
             {
                 int collisionCount = 0;
                 int hashCode = InternalGetHashCode(item);
-                Slot[] slots = _slots;
+                Span<Slot> slots = _slots.Span;
                 // see note at "HashSet" level describing why "- 1" appears in for loop
-                for (int i = _buckets[hashCode % _size] - 1; i >= 0; i = slots[i].next)
+                for (int i = _buckets.Span[hashCode % _size] - 1; i >= 0; i = slots[i].next)
                 {
                     if (slots[i].hashCode == hashCode && _comparer.Equals(slots[i].value, item))
                     {
@@ -410,21 +409,21 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns>true if removed; false if not (i.e. if the item wasn't in the HashSet)</returns>
         public bool Remove(T item)
         {
-            if (_buckets != null)
+            if (_bucketOwner != null)
             {
                 int hashCode = InternalGetHashCode(item);
                 int bucket = hashCode % _size;
                 int last = -1;
                 int collisionCount = 0;
-                Slot[] slots = _slots;
-                for (int i = _buckets[bucket] - 1; i >= 0; last = i, i = slots[i].next)
+                Span<Slot> slots = _slots.Span;
+                for (int i = _buckets.Span[bucket] - 1; i >= 0; last = i, i = slots[i].next)
                 {
                     if (slots[i].hashCode == hashCode && _comparer.Equals(slots[i].value, item))
                     {
                         if (last < 0)
                         {
                             // first iteration; update buckets
-                            _buckets[bucket] = slots[i].next + 1;
+                            _buckets.Span[bucket] = slots[i].next + 1;
                         }
                         else
                         {
@@ -512,9 +511,9 @@ namespace ArtsTech.HugePageCollections.Collections
 
             info.AddValue(VersionName, _version); // need to serialize version to avoid problems with serializing while enumerating
             info.AddValue(ComparerName, _comparer, typeof(IEqualityComparer<T>));
-            info.AddValue(CapacityName, _buckets == null ? 0 : _size);
+            info.AddValue(CapacityName, _bucketOwner == null ? 0 : _size);
 
-            if (_buckets != null)
+            if (_bucketOwner != null)
             {
                 T[] array = new T[_count];
                 CopyTo(array);
@@ -562,7 +561,7 @@ namespace ArtsTech.HugePageCollections.Collections
             }
             else
             {
-                _buckets = null!;
+                _buckets = default;
             }
 
             _version = _siInfo!.GetInt32(VersionName);
@@ -596,12 +595,12 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </remarks>
         public bool TryGetValue(T equalValue, out T actualValue)
         {
-            if (_buckets != null)
+            if (_bucketOwner != null)
             {
                 int i = InternalIndexOf(equalValue);
                 if (i >= 0)
                 {
-                    actualValue = _slots[i].value;
+                    actualValue = _slots.Span[i].value;
                     return true;
                 }
             }
@@ -1492,9 +1491,9 @@ namespace ArtsTech.HugePageCollections.Collections
             int numCopied = 0;
             for (int i = 0; i < _lastIndex && numCopied < count; i++)
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    array[arrayIndex + numCopied] = _slots[i].value;
+                    array[arrayIndex + numCopied] = _slots.Span[i].value;
                     numCopied++;
                 }
             }
@@ -1518,9 +1517,9 @@ namespace ArtsTech.HugePageCollections.Collections
             int numCopied = 0;
             for (int i = 0; i < _lastIndex && numCopied < count; i++)
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    span[numCopied] = _slots[i].value;
+                    span[numCopied] = _slots.Span[i].value;
                     numCopied++;
                 }
             }
@@ -1541,10 +1540,10 @@ namespace ArtsTech.HugePageCollections.Collections
             int numRemoved = 0;
             for (int i = 0; i < _lastIndex; i++)
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
                     // cache value in case delegate removes it
-                    T value = _slots[i].value;
+                    T value = _slots.Span[i].value;
                     if (match(value))
                     {
                         // check again that remove actually removed it
@@ -1571,10 +1570,10 @@ namespace ArtsTech.HugePageCollections.Collections
         {
             if (capacity < 0)
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.capacity, ExceptionResource.ArgumentOutOfRange_NeedNonNegNum);
-            int currentCapacity = _slots == null ? 0 : _size;
+            int currentCapacity = _slotOwner == null ? 0 : _size;
             if (currentCapacity >= capacity)
                 return currentCapacity;
-            if (_buckets == null)
+            if (_bucketOwner == null)
                 return Initialize(capacity);
 
             int newSize = HashHelpers.GetPrime(capacity);
@@ -1605,40 +1604,40 @@ namespace ArtsTech.HugePageCollections.Collections
             }
             else
             {
-                Debug.Assert(_buckets != null, "_buckets was null but _count > 0");
+                Debug.Assert(_bucketOwner != null, "_buckets was null but _count > 0");
 
                 // similar to IncreaseCapacity but moves down elements in case add/remove/etc
                 // caused fragmentation
                 int newSize = HashHelpers.GetPrime(_count);
-                Slot[] newSlots = s_slotPool.Rent(newSize);
-                int[] newBuckets = s_bucketPool.Rent(newSize);
+                IMemoryOwner<Slot> newSlotOwner = s_slotPool.Rent(newSize);
+                IMemoryOwner<int> newBucketOwner = s_bucketPool.Rent(newSize);
+                Memory<Slot> newSlots = newSlotOwner.Memory;
+                Memory<int> newBuckets = newBucketOwner.Memory;
 
                 if (newSlots.Length >= _slots.Length || newBuckets.Length >= _buckets.Length)
                 {
-                    // ArrayPool treats "newSize" as a minimum - if it gives us arrays that are as-big or bigger
-                    // that what we already have, we're not really trimming any excess and may as well quit.
-                    // We can't manually create exact-sized arrays unless we track that we did and avoid returning
-                    // them to the ArrayPool, as that would throw an exception.
-                    s_slotPool.Return(newSlots);
-                    s_bucketPool.Return(newBuckets);
+                    // If the pool gives us buffers as big as the ones we already have, we're not
+                    // really trimming any excess and may as well quit.
+                    newSlotOwner.Dispose();
+                    newBucketOwner.Dispose();
                     return;
                 }
 
-                Array.Clear(newBuckets, 0, newBuckets.Length);
+                newBuckets.Span.Clear();
 
                 // move down slots and rehash at the same time. newIndex keeps track of current 
                 // position in newSlots array
                 int newIndex = 0;
                 for (int i = 0; i < _lastIndex; i++)
                 {
-                    if (_slots[i].hashCode >= 0)
+                    if (_slots.Span[i].hashCode >= 0)
                     {
-                        newSlots[newIndex] = _slots[i];
+                        newSlots.Span[newIndex] = _slots.Span[i];
 
                         // rehash
-                        int bucket = newSlots[newIndex].hashCode % newSize;
-                        newSlots[newIndex].next = newBuckets[bucket] - 1;
-                        newBuckets[bucket] = newIndex + 1;
+                        int bucket = newSlots.Span[newIndex].hashCode % newSize;
+                        newSlots.Span[newIndex].next = newBuckets.Span[bucket] - 1;
+                        newBuckets.Span[bucket] = newIndex + 1;
 
                         newIndex++;
                     }
@@ -1650,6 +1649,8 @@ namespace ArtsTech.HugePageCollections.Collections
                 ReturnArrays();
                 _slots = newSlots;
                 _buckets = newBuckets;
+                _slotOwner = newSlotOwner;
+                _bucketOwner = newBucketOwner;
                 _size = newSize;
                 _freeList = -1;
                 _version++;
@@ -1673,12 +1674,14 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <param name="capacity"></param>
         private int Initialize(int capacity)
         {
-            Debug.Assert(_buckets == null, "Initialize was called but _buckets was non-null");
+            Debug.Assert(_bucketOwner == null, "Initialize was called but _buckets was non-null");
 
             _size = HashHelpers.GetPrime(capacity);
-            _buckets = s_bucketPool.Rent(_size);
-            Array.Clear(_buckets, 0, _buckets.Length);
-            _slots = s_slotPool.Rent(_size);
+            _bucketOwner = s_bucketPool.Rent(_size);
+            _buckets = _bucketOwner.Memory;
+            _buckets.Span.Clear();
+            _slotOwner = s_slotPool.Rent(_size);
+            _slots = _slotOwner.Memory;
 
             return _size;
         }
@@ -1691,7 +1694,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </summary>
         private void IncreaseCapacity()
         {
-            Debug.Assert(_buckets != null, "IncreaseCapacity called on a set with no elements");
+            Debug.Assert(_bucketOwner != null, "IncreaseCapacity called on a set with no elements");
 
             int newSize = HashHelpers.ExpandPrime(_count);
             if (newSize <= _count)
@@ -1711,40 +1714,44 @@ namespace ArtsTech.HugePageCollections.Collections
         private void SetCapacity(int newSize)
         {
             Debug.Assert(HashHelpers.IsPrime(newSize), "New size is not prime!");
-            Debug.Assert(_buckets != null, "SetCapacity called on a set with no elements");
+            Debug.Assert(_bucketOwner != null, "SetCapacity called on a set with no elements");
 
-            int[] newBuckets;
-            Slot[] newSlots;
+            Memory<int> newBuckets;
+            Memory<Slot> newSlots;
+            IMemoryOwner<int>? newBucketOwner = null;
+            IMemoryOwner<Slot>? newSlotOwner = null;
             bool replaceArrays;
 
-            // Because ArrayPool might have given us larger arrays than we asked for, see if we can 
+            // Because the memory pool might have given us larger buffers than we asked for, see if we can
             // use the existing capacity without actually resizing.
-            if (_buckets?.Length >= newSize && _slots?.Length >= newSize)
+            if (_buckets.Length >= newSize && _slots.Length >= newSize)
             {
-                Array.Clear(_buckets, 0, _buckets.Length);
-                Array.Clear(_slots, _size, newSize - _size);
+                _buckets.Span.Clear();
+                _slots.Span.Slice(_size, newSize - _size).Clear();
                 newBuckets = _buckets;
                 newSlots = _slots;
                 replaceArrays = false;
             }
             else
             {
-                newSlots = s_slotPool.Rent(newSize);
-                newBuckets = s_bucketPool.Rent(newSize);
+                newSlotOwner = s_slotPool.Rent(newSize);
+                newBucketOwner = s_bucketPool.Rent(newSize);
+                newSlots = newSlotOwner.Memory;
+                newBuckets = newBucketOwner.Memory;
 
-                Array.Clear(newBuckets, 0, newBuckets.Length);
-                if (_slots != null)
+                newBuckets.Span.Clear();
+                if (_slotOwner != null)
                 {
-                    Array.Copy(_slots, 0, newSlots, 0, _lastIndex);
+                    _slots.Span[.._lastIndex].CopyTo(newSlots.Span);
                 }
                 replaceArrays = true;
             }
 
             for (int i = 0; i < _lastIndex; i++)
             {
-                int bucket = newSlots[i].hashCode % newSize;
-                newSlots[i].next = newBuckets[bucket] - 1;
-                newBuckets[bucket] = i + 1;
+                int bucket = newSlots.Span[i].hashCode % newSize;
+                newSlots.Span[i].next = newBuckets.Span[bucket] - 1;
+                newBuckets.Span[bucket] = i + 1;
             }
 
             if (replaceArrays)
@@ -1752,6 +1759,8 @@ namespace ArtsTech.HugePageCollections.Collections
                 ReturnArrays();
                 _slots = newSlots;
                 _buckets = newBuckets;
+                _slotOwner = newSlotOwner;
+                _bucketOwner = newBucketOwner;
             }
 
             _size = newSize;
@@ -1759,32 +1768,21 @@ namespace ArtsTech.HugePageCollections.Collections
 
         private void ReturnArrays()
         {
-            if (_slots?.Length > 0)
+            if (_slotOwner != null)
             {
-                try
+                if (_clearOnFree)
                 {
-                    s_slotPool.Return(_slots, clearArray: _clearOnFree);
+                    _slots.Span.Clear();
                 }
-                catch (ArgumentException)
-                {
-                    // oh well, the array pool didn't like our array
-                }
+                _slotOwner.Dispose();
+                _slotOwner = null;
             }
 
-            if (_buckets?.Length > 0)
-            {
-                try
-                {
-                    s_bucketPool.Return(_buckets);
-                }
-                catch (ArgumentException)
-                {
-                    // shucks
-                }
-            }
+            _bucketOwner?.Dispose();
+            _bucketOwner = null;
 
-            _slots = null!;
-            _buckets = null!;
+            _slots = default;
+            _buckets = default;
         }
 
         private static bool ShouldClear(ClearMode mode)
@@ -1801,7 +1799,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns></returns>
         private bool AddIfNotPresent(T value)
         {
-            if (_buckets == null)
+            if (_bucketOwner == null)
             {
                 Initialize(0);
             }
@@ -1809,8 +1807,8 @@ namespace ArtsTech.HugePageCollections.Collections
             int hashCode = InternalGetHashCode(value);
             int bucket = hashCode % _size;
             int collisionCount = 0;
-            Slot[] slots = _slots;
-            for (int i = _buckets![bucket] - 1; i >= 0; i = slots[i].next)
+            Span<Slot> slots = _slots.Span;
+            for (int i = _buckets.Span[bucket] - 1; i >= 0; i = slots[i].next)
             {
                 if (slots[i].hashCode == hashCode && _comparer.Equals(slots[i].value, value))
                 {
@@ -1837,7 +1835,7 @@ namespace ArtsTech.HugePageCollections.Collections
                 {
                     IncreaseCapacity();
                     // this will change during resize
-                    slots = _slots;
+                    slots = _slots.Span;
                     bucket = hashCode % _size;
                 }
                 index = _lastIndex;
@@ -1845,8 +1843,8 @@ namespace ArtsTech.HugePageCollections.Collections
             }
             slots[index].hashCode = hashCode;
             slots[index].value = value;
-            slots[index].next = _buckets[bucket] - 1;
-            _buckets[bucket] = index + 1;
+            slots[index].next = _buckets.Span[bucket] - 1;
+            _buckets.Span[bucket] = index + 1;
             _count++;
             _version++;
 
@@ -1861,17 +1859,17 @@ namespace ArtsTech.HugePageCollections.Collections
 
 #if DEBUG
             Debug.Assert(InternalGetHashCode(value) == hashCode);
-            for (int i = _buckets[bucket] - 1; i >= 0; i = _slots[i].next)
+            for (int i = _buckets.Span[bucket] - 1; i >= 0; i = _slots.Span[i].next)
             {
-                Debug.Assert(!_comparer.Equals(_slots[i].value, value));
+                Debug.Assert(!_comparer.Equals(_slots.Span[i].value, value));
             }
 #endif
 
             Debug.Assert(_freeList == -1);
-            _slots[index].hashCode = hashCode;
-            _slots[index].value = value;
-            _slots[index].next = _buckets[bucket] - 1;
-            _buckets[bucket] = index + 1;
+            _slots.Span[index].hashCode = hashCode;
+            _slots.Span[index].value = value;
+            _slots.Span[index].next = _buckets.Span[bucket] - 1;
+            _buckets.Span[bucket] = index + 1;
         }
 
         /// <summary>
@@ -1971,9 +1969,9 @@ namespace ArtsTech.HugePageCollections.Collections
         {
             for (int i = 0; i < _lastIndex; i++)
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    T item = _slots[i].value;
+                    T item = _slots.Span[i].value;
                     if (!other.Contains(item))
                     {
                         Remove(item);
@@ -1991,9 +1989,9 @@ namespace ArtsTech.HugePageCollections.Collections
         {
             for (int i = 0; i < _lastIndex; i++)
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    T item = _slots[i].value;
+                    T item = _slots.Span[i].value;
                     if (!other.Contains(item))
                     {
                         Remove(item);
@@ -2011,7 +2009,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <param name="other"></param>
         private void IntersectWithEnumerable(IEnumerable<T> other)
         {
-            Debug.Assert(_buckets != null, "_buckets shouldn't be null; callers should check first");
+            Debug.Assert(_bucketOwner != null, "_buckets shouldn't be null; callers should check first");
 
             // keep track of current last index; don't want to move past the end of our bit array
             // (could happen if another thread is modifying the collection)
@@ -2036,9 +2034,9 @@ namespace ArtsTech.HugePageCollections.Collections
             // if anything unmarked, remove it. 
             for (int i = bitHelper.FindFirstUnmarked(); (uint)i < (uint)originalLastIndex; i = bitHelper.FindFirstUnmarked(i + 1))
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    Remove(_slots[i].value);
+                    Remove(_slots.Span[i].value);
                 }
             }
         }
@@ -2052,7 +2050,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <param name="other"></param>
         private void IntersectWithSpan(ReadOnlySpan<T> other)
         {
-            Debug.Assert(_buckets != null, "_buckets shouldn't be null; callers should check first");
+            Debug.Assert(_bucketOwner != null, "_buckets shouldn't be null; callers should check first");
 
             // keep track of current last index; don't want to move past the end of our bit array
             // (could happen if another thread is modifying the collection)
@@ -2077,9 +2075,9 @@ namespace ArtsTech.HugePageCollections.Collections
             // if anything unmarked, remove it. 
             for (int i = bitHelper.FindFirstUnmarked(); (uint)i < (uint)originalLastIndex; i = bitHelper.FindFirstUnmarked(i + 1))
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    Remove(_slots[i].value);
+                    Remove(_slots.Span[i].value);
                 }
             }
         }
@@ -2092,12 +2090,12 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns></returns>
         private int InternalIndexOf(T item)
         {
-            Debug.Assert(_buckets != null, "_buckets was null; callers should check first");
+            Debug.Assert(_bucketOwner != null, "_buckets was null; callers should check first");
 
             int collisionCount = 0;
             int hashCode = InternalGetHashCode(item);
-            Slot[] slots = _slots;
-            for (int i = _buckets[hashCode % _size] - 1; i >= 0; i = slots[i].next)
+            Span<Slot> slots = _slots.Span;
+            for (int i = _buckets.Span[hashCode % _size] - 1; i >= 0; i = slots[i].next)
             {
                 if ((slots[i].hashCode) == hashCode && _comparer.Equals(slots[i].value, item))
                 {
@@ -2213,9 +2211,9 @@ namespace ArtsTech.HugePageCollections.Collections
             // if anything marked, remove it
             for (int i = itemsToRemove.FindFirstMarked(); (uint)i < (uint)originalLastIndex; i = itemsToRemove.FindFirstMarked(i + 1))
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    Remove(_slots[i].value);
+                    Remove(_slots.Span[i].value);
                 }
             }
         }
@@ -2280,9 +2278,9 @@ namespace ArtsTech.HugePageCollections.Collections
             // if anything marked, remove it
             for (int i = itemsToRemove.FindFirstMarked(); (uint)i < (uint)originalLastIndex; i = itemsToRemove.FindFirstMarked(i + 1))
             {
-                if (_slots[i].hashCode >= 0)
+                if (_slots.Span[i].hashCode >= 0)
                 {
-                    Remove(_slots[i].value);
+                    Remove(_slots.Span[i].value);
                 }
             }
         }
@@ -2299,13 +2297,13 @@ namespace ArtsTech.HugePageCollections.Collections
         /// <returns></returns>
         private bool AddOrGetLocation(T value, out int location)
         {
-            Debug.Assert(_buckets != null, "_buckets is null, callers should have checked");
+            Debug.Assert(_bucketOwner != null, "_buckets is null, callers should have checked");
 
             int hashCode = InternalGetHashCode(value);
             int bucket = hashCode % _size;
             int collisionCount = 0;
-            Slot[] slots = _slots;
-            for (int i = _buckets[bucket] - 1; i >= 0; i = slots[i].next)
+            Span<Slot> slots = _slots.Span;
+            for (int i = _buckets.Span[bucket] - 1; i >= 0; i = slots[i].next)
             {
                 if (slots[i].hashCode == hashCode && _comparer.Equals(slots[i].value, value))
                 {
@@ -2332,7 +2330,7 @@ namespace ArtsTech.HugePageCollections.Collections
                 {
                     IncreaseCapacity();
                     // this will change during resize
-                    slots = _slots;
+                    slots = _slots.Span;
                     bucket = hashCode % _size;
                 }
                 index = _lastIndex;
@@ -2340,8 +2338,8 @@ namespace ArtsTech.HugePageCollections.Collections
             }
             slots[index].hashCode = hashCode;
             slots[index].value = value;
-            slots[index].next = _buckets[bucket] - 1;
-            _buckets[bucket] = index + 1;
+            slots[index].next = _buckets.Span[bucket] - 1;
+            _buckets.Span[bucket] = index + 1;
             _count++;
             _version++;
             location = index;
@@ -2391,7 +2389,7 @@ namespace ArtsTech.HugePageCollections.Collections
                 return result;
             }
 
-            Debug.Assert((_buckets != null) && (_count > 0), "_buckets was null but count greater than 0");
+            Debug.Assert((_bucketOwner != null) && (_count > 0), "_buckets was null but count greater than 0");
 
             int originalLastIndex = _lastIndex;
             int intArrayLength = BitHelper.ToIntArrayLength(originalLastIndex);
@@ -2469,7 +2467,7 @@ namespace ArtsTech.HugePageCollections.Collections
                 return result;
             }
 
-            Debug.Assert((_buckets != null) && (_count > 0), "_buckets was null but count greater than 0");
+            Debug.Assert((_bucketOwner != null) && (_count > 0), "_buckets was null but count greater than 0");
 
             int originalLastIndex = _lastIndex;
             int intArrayLength = BitHelper.ToIntArrayLength(originalLastIndex);
@@ -2613,7 +2611,7 @@ namespace ArtsTech.HugePageCollections.Collections
         }
 
         /// <summary>
-        /// Clears all values and returns internal arrays to the ArrayPool.
+        /// Clears all values and returns internal buffers to the memory pool.
         /// </summary>
         public void Dispose()
         {
@@ -2675,9 +2673,9 @@ namespace ArtsTech.HugePageCollections.Collections
 
                 while (_index < _set._lastIndex)
                 {
-                    if (_set._slots[_index].hashCode >= 0)
+                    if (_set._slots.Span[_index].hashCode >= 0)
                     {
-                        _current = _set._slots[_index].value;
+                        _current = _set._slots.Span[_index].value;
                         _index++;
                         return true;
                     }
