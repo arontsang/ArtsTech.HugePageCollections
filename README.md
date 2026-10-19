@@ -44,15 +44,15 @@ dotnet test ArtsTech.HugePageCollections.UnitTests/ArtsTech.HugePageCollections.
 
 ## Benchmarks
 
-The BenchmarkDotNet project compares a single `Guid` insertion into `HugePagesSet<Guid>` and `HashSet<Guid>`. Both sets are initialized with a capacity of 8 million. The benchmark generates GUIDs from a seeded `Random` (seed `4`), so both implementations receive the same sequence.
+The BenchmarkDotNet project compares single `Guid` insertions and full-set `Contains` hits for `HugePagesSet<Guid>` and `HashSet<Guid>`. Both sets are initialized with a capacity of 8 million. The benchmarks generate GUIDs from a seeded `Random` (seed `4`), so both implementations receive the same sequence. The `Contains` benchmark prepopulates both sets with 8 million GUIDs and scans the same sequence on each iteration.
 
 Run the benchmarks in Release configuration:
 
 ```sh
-dotnet run -c Release --project ArtsTech.HugePageCollections.Benchmarks/ArtsTech.HugePageCollections.Benchmarks.csproj -- --filter '*GuidSetInsertBenchmarks*'
+dotnet run -c Release --project ArtsTech.HugePageCollections.Benchmarks/ArtsTech.HugePageCollections.Benchmarks.csproj -- --filter '*GuidSet*Benchmarks*'
 ```
 
-Sample results:
+Sample insertion results:
 
 | Method                     | Mean     | Error    | StdDev   | Median   | Ratio | RatioSD | Allocated | Alloc Ratio |
 |--------------------------- |---------:|---------:|---------:|---------:|------:|--------:|----------:|------------:|
