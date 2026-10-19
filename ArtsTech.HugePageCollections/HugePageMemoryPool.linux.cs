@@ -104,7 +104,8 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
             throw new OutOfMemoryException($"Linux huge-page allocation failed. errno: {Marshal.GetLastPInvokeError()}");
         }
 
-        LinuxHugePageMemoryInterop.madvise(_pointer, size, Advice.MADV_HUGEPAGE);
+        if (0 != LinuxHugePageMemoryInterop.madvise(_pointer, size, Advice.MADV_HUGEPAGE))
+            Console.WriteLine($"Warning: madvise failed with error code: {Marshal.GetLastWin32Error()}");
     }
     
     
