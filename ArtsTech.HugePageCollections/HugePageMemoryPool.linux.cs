@@ -106,6 +106,10 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
 
         if (0 != LinuxHugePageMemoryInterop.madvise(_pointer, size, Advice.MADV_HUGEPAGE))
             Console.WriteLine($"Warning: madvise failed with error code: {Marshal.GetLastWin32Error()}");
+        for (ulong i = 0; i < size; i += 4096)
+        {
+            _pointer[i] = 1; // Touch each page boundary to trigger the 2MB allocation
+        }
     }
     
     
