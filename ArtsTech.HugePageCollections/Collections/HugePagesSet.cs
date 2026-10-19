@@ -374,6 +374,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </summary>
         /// <param name="item">item to check for containment</param>
         /// <returns>true if item contained; false if not</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(T item)
         {
             if (_bucketOwner != null)
@@ -585,6 +586,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </summary>
         /// <param name="item"></param>
         /// <returns>true if added, false if already present</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Add(T item)
             => AddIfNotPresent(item);
 
@@ -1804,6 +1806,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </summary>
         /// <param name="value">value to find</param>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool AddIfNotPresent(T value)
         {
             if (_bucketOwner == null)
@@ -2608,6 +2611,7 @@ namespace ArtsTech.HugePageCollections.Collections
         /// </summary>
         /// <param name="item"></param>
         /// <returns>hash code</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int InternalGetHashCode(T item)
         {
             return _comparer.GetHashCode(item) & Lower31BitMask;

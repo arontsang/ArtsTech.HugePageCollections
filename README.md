@@ -54,16 +54,24 @@ dotnet run -c Release --project ArtsTech.HugePageCollections.Benchmarks/ArtsTech
 
 Sample insertion results:
 
-| Method                     | Mean     | Error    | StdDev   | Median   | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------------------------- |---------:|---------:|---------:|---------:|------:|--------:|----------:|------------:|
-| HashSet_AddSingleGuid      | 43.05 us | 2.995 us | 8.300 us | 43.49 us |  1.13 |    1.05 |     448 B |        1.00 |
-| HugePagesSet_AddSingleGuid | 10.71 us | 0.868 us | 2.517 us | 11.70 us |  0.28 |    0.27 |     736 B |        1.64 |
+| Method                     | Mean      | Error     | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
+|--------------------------- |----------:|----------:|---------:|------:|--------:|----------:|------------:|
+| HashSet_AddSingleGuid      |  7.758 us | 0.4795 us | 1.360 us |  1.03 |    0.27 |     736 B |        1.00 |
+| HugePagesSet_AddSingleGuid | 12.178 us | 0.5743 us | 1.591 us |  1.62 |    0.37 |     400 B |        0.54 |
+Sample Set.Contains results:
 
-Sample contains results for a 100% fill factor:
-
-| Method                    | Mean     | Error   | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
-|-------------------------- |---------:|--------:|---------:|------:|--------:|----------:|------------:|
-| HashSet_ContainsHits      | 451.6 ns | 8.78 ns | 14.43 ns |  1.00 |    0.04 |         - |          NA |
-| HugePagesSet_ContainsHits | 384.2 ns | 7.47 ns |  8.60 ns |  0.85 |    0.03 |         - |          NA |
+| Method                    | FillFactorPercent | Mean       | Error       | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
+|-------------------------- |------------------ |-----------:|------------:|----------:|------:|--------:|----------:|------------:|
+| HashSet_ContainsHits      | 25                |   872.8 ns |  3,225.3 ns | 176.79 ns |  1.03 |    0.24 |         - |          NA |
+| HugePagesSet_ContainsHits | 25                |   913.2 ns |  3,284.4 ns | 180.03 ns |  1.07 |    0.25 |         - |          NA |
+|                           |                   |            |             |           |       |         |           |             |
+| HashSet_ContainsHits      | 50                |   858.4 ns |    415.1 ns |  22.76 ns |  1.00 |    0.03 |         - |          NA |
+| HugePagesSet_ContainsHits | 50                |   998.4 ns |  2,517.5 ns | 137.99 ns |  1.16 |    0.14 |         - |          NA |
+|                           |                   |            |             |           |       |         |           |             |
+| HashSet_ContainsHits      | 75                |   989.2 ns |    414.8 ns |  22.74 ns |  1.00 |    0.03 |         - |          NA |
+| HugePagesSet_ContainsHits | 75                |   891.3 ns |    420.8 ns |  23.07 ns |  0.90 |    0.03 |         - |          NA |
+|                           |                   |            |             |           |       |         |           |             |
+| HashSet_ContainsHits      | 100               | 1,712.3 ns | 12,176.5 ns | 667.44 ns |  1.09 |    0.50 |         - |          NA |
+| HugePagesSet_ContainsHits | 100               |   962.4 ns |    316.2 ns |  17.33 ns |  0.61 |    0.18 |         - |          NA |
 
 Benchmark results vary with hardware, runtime, operating-system configuration, and load.

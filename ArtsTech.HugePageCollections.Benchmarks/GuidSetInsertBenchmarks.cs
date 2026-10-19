@@ -19,7 +19,7 @@ public class GuidSetInsertBenchmarks
     public void Setup()
     {
         _random = new Random(RandomSeed);
-        _hugePagesSet = new HugePagesSet<Guid>(InitialCapacity);
+        _hugePagesSet = new HugePagesSet<Guid>(InitialCapacity, ClearMode.Never);
         _hashSet = new HashSet<Guid>(InitialCapacity);
     }
 
