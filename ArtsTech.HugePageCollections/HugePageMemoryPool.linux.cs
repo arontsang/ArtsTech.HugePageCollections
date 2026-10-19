@@ -53,10 +53,12 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
 {
     private readonly byte* _pointer;
     private readonly int _length;
+    private readonly int _requestedLength;
     private bool _isDisposed;
 
     public LinuxHugePageMemoryManager(int length)
     {
+        _requestedLength = length;
         if (length <= 0)
             throw new ArgumentOutOfRangeException(nameof(length));
         
@@ -72,14 +74,14 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
     {
         if (_isDisposed) 
             throw new ObjectDisposedException(nameof(LinuxHugePageMemoryManager<T>));
-        return new Span<T>(_pointer, _length);
+        return new Span<T>(_pointer, _requestedLength);
     }
 
     public override MemoryHandle Pin(int elementIndex = 0)
     {
         if (_isDisposed) 
             throw new ObjectDisposedException(nameof(LinuxHugePageMemoryManager<T>));
-        if (elementIndex < 0 || elementIndex >= _length) 
+        if (elementIndex < 0 || elementIndex >= _requestedLength) 
             throw new ArgumentOutOfRangeException(nameof(elementIndex));
         return new MemoryHandle(_pointer + elementIndex);
     }
