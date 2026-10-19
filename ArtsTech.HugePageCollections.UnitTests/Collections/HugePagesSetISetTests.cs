@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ArtsTech.HugePageCollections;
 using ArtsTech.HugePageCollections.Collections;
 
 namespace ArtsTech.HugePageCollections.UnitTests.Collections;
@@ -6,6 +7,21 @@ namespace ArtsTech.HugePageCollections.UnitTests.Collections;
 [TestFixture]
 public class HugePagesSetISetTests
 {
+    [SetUp]
+    public void RequireHugePages()
+    {
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsWindows())
+        {
+            if (!HugePages.IsHugePageAllow())
+            {
+                Assert.Ignore("HugePagesSet ISet tests require at least two configured Linux huge pages.");
+            }
+            return;
+        }
+
+        Assert.Ignore("HugePagesSet requires an operating system supported by its huge-page allocator.");
+    }
+
     [Test]
     public void AddRemoveAndContainsFollowISetContract()
     {

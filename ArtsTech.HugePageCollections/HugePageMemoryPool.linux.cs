@@ -54,7 +54,11 @@ file static unsafe class LinuxHugePageMemoryInterop
     [DllImport("libc", SetLastError = true)]
     public static extern byte* mmap(void* addr, nuint length, Prots prot, Flags flags, int fd, nint offset);
     [DllImport("libc", SetLastError = true)]
-    public static extern int munmap(void* addr, nuint length);
+    public static extern int munmap(byte* addr, nuint length);
+    
+    [DllImport("libc", SetLastError = true)]
+    public static extern int madvise(byte* addr, UIntPtr length, Advice advice);
+
 }
 
 [Flags]
@@ -73,6 +77,11 @@ file enum Flags : uint
     HUGE = 0x40000
 }
 
+file enum Advice : uint
+{
+    MADV_HUGEPAGE = 14
+}
+
 [SupportedOSPlatform("linux")]
 file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unmanaged
 {
@@ -89,11 +98,13 @@ file unsafe class LinuxHugePageMemoryManager<T> : MemoryManager<T> where T : unm
         
         _length = Power2Size(length * sizeof(T));
         var size = (nuint) _length;
-        _pointer = LinuxHugePageMemoryInterop.mmap(null, size, Prots.READ | Prots.WRITE, Flags.ANONYMOUS | Flags.HUGE | Flags.PRIVATE, -1, 0);
+        _pointer = LinuxHugePageMemoryInterop.mmap(null, size, Prots.READ | Prots.WRITE, Flags.ANONYMOUS | Flags.PRIVATE, -1, 0);
         if (_pointer == (byte*)new IntPtr(-1))
         {
             throw new OutOfMemoryException($"Linux huge-page allocation failed. errno: {Marshal.GetLastPInvokeError()}");
         }
+
+        LinuxHugePageMemoryInterop.madvise(_pointer, size, Advice.MADV_HUGEPAGE);
     }
     
     
