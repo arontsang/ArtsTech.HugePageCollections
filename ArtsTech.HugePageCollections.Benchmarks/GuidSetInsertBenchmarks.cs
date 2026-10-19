@@ -9,14 +9,17 @@ namespace ArtsTech.HugePageCollections.Benchmarks;
 public class GuidSetInsertBenchmarks
 {
     private const int InitialCapacity = 8_000_000;
+    private const int RandomSeed = 4; // Chosen by fair dice roll. Guaranteed to be random.
 
     private HugePagesSet<Guid> _hugePagesSet = null!;
     private HashSet<Guid> _hashSet = null!;
+    private Random _random = null!;
     private Guid _value;
 
     [GlobalSetup]
     public void Setup()
     {
+        _random = new Random(RandomSeed);
         _hugePagesSet = new HugePagesSet<Guid>(InitialCapacity);
         _hashSet = new HashSet<Guid>(InitialCapacity);
     }
@@ -24,7 +27,9 @@ public class GuidSetInsertBenchmarks
     [IterationSetup]
     public void SetupIteration()
     {
-        _value = Guid.NewGuid();
+        Span<byte> bytes = stackalloc byte[16];
+        _random.NextBytes(bytes);
+        _value = new Guid(bytes);
     }
 
     [Benchmark(Baseline = true)]
