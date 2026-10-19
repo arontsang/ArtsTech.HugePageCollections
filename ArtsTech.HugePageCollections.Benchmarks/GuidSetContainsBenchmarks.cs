@@ -7,7 +7,7 @@ using BenchmarkDotNet.Jobs;
 namespace ArtsTech.HugePageCollections.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 1, iterationCount: 3)]
+[SimpleJob(warmupCount: 1, iterationCount: 3, invocationCount: 10_000)]
 public class GuidSetContainsBenchmarks
 {
     private const int Capacity = 8_000_000;
@@ -19,7 +19,6 @@ public class GuidSetContainsBenchmarks
 
     private HugePagesSet<Guid> _hugePagesSet = null!;
     private HashSet<Guid> _hashSet = null!;
-    private Guid[] _guids = null!;
     private Random _random = null!;
     private int _populationCount;
 
@@ -28,7 +27,6 @@ public class GuidSetContainsBenchmarks
     {
         _hugePagesSet = new HugePagesSet<Guid>(Capacity);
         _hashSet = new HashSet<Guid>(Capacity);
-        _guids = new Guid[QueryCount];
         _populationCount = Capacity * FillFactorPercent / 100;
 
         _random = new Random(RandomSeed);
@@ -36,10 +34,6 @@ public class GuidSetContainsBenchmarks
         for (int i = 0; i < _populationCount; i++)
         {
             Guid value = NextGuid(_random, bytes);
-            if (i < QueryCount)
-            {
-                _guids[i] = value;
-            }
             _hashSet.Add(value);
             _hugePagesSet.Add(value);
         }
@@ -54,39 +48,18 @@ public class GuidSetContainsBenchmarks
     public void SetupIteration()
     {
         _random = new Random(RandomSeed);
-        Span<byte> bytes = stackalloc byte[16];
-        for (int i = 0; i < QueryCount; i++)
-        {
-            _guids[i] = NextGuid(_random, bytes);
-        }
     }
 
-    [Benchmark(Baseline = true, OperationsPerInvoke = QueryCount)]
-    public int HashSet_ContainsHits()
+    [Benchmark(Baseline = true)]
+    public void HashSet_ContainsHits()
     {
-        int hits = 0;
-        for (int i = 0; i < _guids.Length; i++)
-        {
-            if (_hashSet.Contains(_guids[i]))
-            {
-                hits++;
-            }
-        }
-        return hits;
+        _ =_hashSet.Contains(_random.NextGuid());
     }
 
-    [Benchmark(OperationsPerInvoke = QueryCount)]
-    public int HugePagesSet_ContainsHits()
+    [Benchmark]
+    public void HugePagesSet_ContainsHits()
     {
-        int hits = 0;
-        for (int i = 0; i < _guids.Length; i++)
-        {
-            if (_hugePagesSet.Contains(_guids[i]))
-            {
-                hits++;
-            }
-        }
-        return hits;
+        _ = _hugePagesSet.Contains(_random.NextGuid());
     }
 
     [GlobalCleanup]

@@ -14,7 +14,6 @@ public class GuidSetInsertBenchmarks
     private HugePagesSet<Guid> _hugePagesSet = null!;
     private HashSet<Guid> _hashSet = null!;
     private Random _random = null!;
-    private Guid _value;
 
     [GlobalSetup]
     public void Setup()
@@ -27,16 +26,16 @@ public class GuidSetInsertBenchmarks
     [IterationSetup]
     public void SetupIteration()
     {
-        Span<byte> bytes = stackalloc byte[16];
-        _random.NextBytes(bytes);
-        _value = new Guid(bytes);
+        _random = new Random(RandomSeed);
+        _hugePagesSet.Clear();
+        _hashSet.Clear();
     }
 
     [Benchmark(Baseline = true)]
-    public bool HashSet_AddSingleGuid() => _hashSet.Add(_value);
+    public bool HashSet_AddSingleGuid() => _hashSet.Add(_random.NextGuid());
 
     [Benchmark]
-    public bool HugePagesSet_AddSingleGuid() => _hugePagesSet.Add(_value);
+    public bool HugePagesSet_AddSingleGuid() => _hugePagesSet.Add(_random.NextGuid());
 
     [GlobalCleanup]
     public void Cleanup()
